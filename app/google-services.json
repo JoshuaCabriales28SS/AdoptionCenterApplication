@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "433616433079",
+    "project_id": "adoption-center-application",
+    "storage_bucket": "adoption-center-application.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:433616433079:android:308b3b45d677548f794232",
+        "android_client_info": {
+          "package_name": "com.personal.adoptioncenterapplication"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDo064KMjJZYPYMQEdtypvcYcLQR2Fn3i0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

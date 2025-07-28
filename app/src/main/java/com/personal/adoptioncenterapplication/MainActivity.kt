@@ -46,10 +46,21 @@ import coil.compose.AsyncImage
 import com.personal.adoptioncenterapplication.model.Animal
 import com.personal.adoptioncenterapplication.ui.theme.AdoptionCenterApplicationTheme
 
+// Extensiones de Firebase
+import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.FirebaseApp
+import android.widget.Toast
+import androidx.compose.ui.platform.LocalContext
+
 class MainActivity : ComponentActivity() {
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+
+        // Inicializar explicitamente conexion con Firebase
+        FirebaseApp.initializeApp(this)
+
         setContent {
             AdoptionCenterApplicationTheme {
                 AdoptionApp()
@@ -148,6 +159,8 @@ fun AdoptionApp() {
 fun LoginScreen(onLoginSuccess: () -> Unit, onNavigateToRegister: () -> Unit) {
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
+    val context = LocalContext.current
+    val auth = FirebaseAuth.getInstance()
 
     Column(
         modifier = Modifier
@@ -173,7 +186,24 @@ fun LoginScreen(onLoginSuccess: () -> Unit, onNavigateToRegister: () -> Unit) {
         )
         Spacer(modifier = Modifier.height(24.dp))
         Button(
-            onClick = { if (email.isNotBlank() && password.isNotBlank()) onLoginSuccess() },
+            onClick = { if (email.isNotBlank() && password.isNotBlank()) {
+                auth.signInWithEmailAndPassword(email, password)
+                    .addOnCompleteListener { task ->
+                        if (task.isSuccessful) {
+                            Toast.makeText(context, "Bienvenido", Toast.LENGTH_SHORT).show()
+                            onLoginSuccess()
+                        } else {
+                            Toast.makeText(
+                                context,
+                                "Error: ${task.exception?.message}",
+                                Toast.LENGTH_LONG
+                            ).show()
+                        }
+                    }
+                } else {
+                    Toast.makeText(context, "Por favor completa todos los campos", Toast.LENGTH_SHORT).show()
+                }
+            },
             modifier = Modifier
                 .background(MaterialTheme.colorScheme.primary)
                 .fillMaxWidth()
@@ -193,7 +223,9 @@ fun LoginScreen(onLoginSuccess: () -> Unit, onNavigateToRegister: () -> Unit) {
 fun RegisterScreen(onRegisterComplete: () -> Unit) {
     var name by remember { mutableStateOf("") }
     var email by remember { mutableStateOf("") }
-    var phone by remember { mutableStateOf("") }
+    var password by remember { mutableStateOf("") }
+    val context = LocalContext.current
+    val auth = FirebaseAuth.getInstance()
 
     Column(
         modifier = Modifier
@@ -216,14 +248,33 @@ fun RegisterScreen(onRegisterComplete: () -> Unit) {
             modifier = Modifier.fillMaxWidth()
         )
         OutlinedTextField(
-            value = phone,
-            onValueChange = { phone = it },
-            label = { Text(text = "Telefono") },
-            modifier = Modifier.fillMaxWidth()
+            value = password,
+            onValueChange = { password = it },
+            label = { Text(text = "Contraseña") },
+            modifier = Modifier.fillMaxWidth(),
+            visualTransformation = PasswordVisualTransformation()
         )
         Spacer(modifier = Modifier.height(24.dp))
         Button(
-            onClick = { if (name.isNotBlank() && email.isNotBlank()) onRegisterComplete() },
+            onClick = {
+                if (name.isNotBlank() && email.isNotBlank() && password.isNotBlank()) {
+                    auth.createUserWithEmailAndPassword(email, password)
+                        .addOnCompleteListener { task ->
+                            if (task.isSuccessful) {
+                                Toast.makeText(
+                                    context,
+                                    "Usuario creado correctamente",
+                                    Toast.LENGTH_SHORT
+                                ).show()
+                                onRegisterComplete()
+                            } else {
+                                Toast.makeText(context, "Error: ${task.exception?.message}", Toast.LENGTH_LONG).show()
+                            }
+                        }
+                } else {
+                    Toast.makeText(context, "Por favor completa todos los campos", Toast.LENGTH_SHORT).show()
+                }
+            },
             modifier = Modifier.fillMaxWidth()
         ) {
             Text("Registrarse")
@@ -378,6 +429,6 @@ fun RegisterAnimalScreen(onAnimalRegistered: () -> Unit) {
 @Composable
 fun PreviewScreen() {
     AdoptionCenterApplicationTheme {
-        LoginScreen({ null }, { null })
+
     }
 }
