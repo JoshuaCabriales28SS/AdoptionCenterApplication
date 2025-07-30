@@ -30,10 +30,11 @@ import kotlinx.coroutines.tasks.await
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 
+// Dependencias internas
 import com.personal.adoptioncenterapplication.model.Animal
 import com.personal.adoptioncenterapplication.ui.theme.AdoptionCenterApplicationTheme
 
-// Extensiones de Firebase
+// Dependencias de Firebase
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.FirebaseApp
 import com.google.firebase.firestore.FirebaseFirestore
@@ -84,7 +85,7 @@ fun AdoptionApp() {
             )
         }
 
-        // 1. Pantalla de Login
+        // Pantalla de Login
         composable("login") {
             LoginScreen(
                 onLoginSuccess = { navController.navigate("catalog") },
@@ -112,14 +113,14 @@ fun AdoptionApp() {
             AdminRequestsScreen()
         }
 
-        // 2. Pantalla de Registro de Usuario
+        // Pantalla de Registro de Usuario
         composable("register") {
             RegisterScreen(
                 onRegisterComplete = { navController.navigate("catalog") }
             )
         }
 
-        // 3. Catálogo de Animales
+        // Catálogo de Animales
         composable("catalog") {
             AnimalCatalogScreen(
                 onAnimalSelected = { selectedAnimal ->
@@ -132,7 +133,7 @@ fun AdoptionApp() {
             )
         }
 
-        // 4. Detalle de Animal
+        // Detalle de Animal
         composable("detail") {
             val animal =
                 navController.previousBackStackEntry?.savedStateHandle?.get<Animal>("animal")
@@ -145,7 +146,7 @@ fun AdoptionApp() {
             }
         }
 
-        // 5. Solicitud de Animal
+        // Solicitud de Animal
         composable("adoption_request/{animalName}") { backStackEntry ->
             val animalName = backStackEntry.arguments?.getString("animalName") ?: ""
             AdoptionRequestScreen(
@@ -154,7 +155,7 @@ fun AdoptionApp() {
             )
         }
 
-        // 6. Registro de Nuevo Animal
+        // Registro de Nuevo Animal
         composable("register_animal") {
             RegisterAnimalScreen(
                 onAnimalRegistered = { navController.popBackStack() }
@@ -163,9 +164,7 @@ fun AdoptionApp() {
     }
 }
 
-// PANTALLAS
-
-// Pantalla de inicio
+// Pantalla de inicio - seleccion
 @Composable
 fun RoleSelectionScreen(
     onUserSelected: () -> Unit,
@@ -200,9 +199,12 @@ fun RoleSelectionScreen(
 }
 
 
-// 1. Pantalla de Login
+// User Login
 @Composable
-fun LoginScreen(onLoginSuccess: () -> Unit, onNavigateToRegister: () -> Unit) {
+fun LoginScreen(
+    onLoginSuccess: () -> Unit,
+    onNavigateToRegister: () -> Unit
+) {
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     val context = LocalContext.current
@@ -266,7 +268,10 @@ fun LoginScreen(onLoginSuccess: () -> Unit, onNavigateToRegister: () -> Unit) {
 
 // Admin Login
 @Composable
-fun AdminLoginScreen(onAdminLoginSuccess: () -> Unit, onNavigateToRegister: () -> Unit) {
+fun AdminLoginScreen(
+    onAdminLoginSuccess: () -> Unit,
+    onNavigateToRegister: () -> Unit
+) {
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     val context = LocalContext.current
@@ -328,9 +333,11 @@ fun AdminLoginScreen(onAdminLoginSuccess: () -> Unit, onNavigateToRegister: () -
     }
 }
 
-// Pantalla para administrar los registros
+// Pantalla Admin Registro Animales
 @Composable
-fun AdminAnimalListScreen(onNavigateToRequests: () -> Unit) {
+fun AdminAnimalListScreen(
+    onNavigateToRequests: () -> Unit
+) {
     val db = FirebaseFirestore.getInstance()
     var animals by remember { mutableStateOf<List<Pair<String, Animal>>>(emptyList()) }
     var isLoading by remember { mutableStateOf(true) }
@@ -372,8 +379,12 @@ fun AdminAnimalListScreen(onNavigateToRequests: () -> Unit) {
     }
 }
 
+// Tarjeta de Animal
 @Composable
-fun AnimalItem(animal: Animal, onDelete: () -> Unit) {
+fun AnimalItem(
+    animal: Animal,
+    onDelete: () -> Unit
+) {
     Card(modifier = Modifier.fillMaxWidth(), elevation = CardDefaults.cardElevation(4.dp)) {
         Column(modifier = Modifier.padding(16.dp)) {
             Text("Nombre: ${animal.name}", style = MaterialTheme.typography.titleMedium)
@@ -395,7 +406,7 @@ fun AdminRequestsScreen() {
     var requests by remember { mutableStateOf<List<DocumentSnapshot>>(emptyList()) }
     var isLoading by remember { mutableStateOf(true) }
 
-    // Cargar solicitudes al iniciar
+    // Se enlaza a Firebase y carga las solicitudes actuales
     LaunchedEffect(Unit) {
         db.collection("adoption_requests")
             .orderBy("timestamp", Query.Direction.DESCENDING)
@@ -464,10 +475,11 @@ fun AdminRequestsScreen() {
     }
 }
 
-
-// 2. Pantalla de Registro de Usuario
+// Pantalla de Registro de Usuario
 @Composable
-fun RegisterScreen(onRegisterComplete: () -> Unit) {
+fun RegisterScreen(
+    onRegisterComplete: () -> Unit
+) {
     var name by remember { mutableStateOf("") }
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
@@ -529,7 +541,7 @@ fun RegisterScreen(onRegisterComplete: () -> Unit) {
     }
 }
 
-// 3. Pantalla de Catalogo de Animales
+// Pantalla de Catalogo de Animales
 @Composable
 fun AnimalCatalogScreen(
     onAnimalSelected: (Animal) -> Unit,
@@ -579,6 +591,7 @@ fun AnimalCatalogScreen(
     }
 }
 
+// Tarjeta de Animal para Catalogo
 @Composable
 fun AnimalCard(
     animal: Animal,
@@ -626,7 +639,7 @@ fun AnimalCard(
     }
 }
 
-// 4. Pantalla de Detalle de Animal
+// Pantalla de Detalles de Animal
 @Composable
 fun AnimalDetailScreen(
     animal: Animal,
@@ -679,9 +692,12 @@ fun AnimalDetailScreen(
     }
 }
 
-// 5. Pantalla de Solicitud de Animal
+// Pantalla de Solicitud de Animal
 @Composable
-fun AdoptionRequestScreen(animalName: String, onSubmit: () -> Unit) {
+fun AdoptionRequestScreen(
+    animalName: String,
+    onSubmit: () -> Unit
+) {
     val context = LocalContext.current
     val db = FirebaseFirestore.getInstance()
 
@@ -759,11 +775,11 @@ fun AdoptionRequestScreen(animalName: String, onSubmit: () -> Unit) {
     }
 }
 
-
-
-// 6. Pantalla de Registro de Animales
+// Pantalla de Registro de Animales
 @Composable
-fun RegisterAnimalScreen(onAnimalRegistered: () -> Unit) {
+fun RegisterAnimalScreen(
+    onAnimalRegistered: () -> Unit
+) {
     val context = LocalContext.current
     val db = FirebaseFirestore.getInstance()
 
@@ -881,12 +897,11 @@ fun RegisterAnimalScreen(onAnimalRegistered: () -> Unit) {
     }
 }
 
-
-
+//Preview para cargar cada pantalla (Pruebas)
 @Preview(showBackground = true)
 @Composable
 fun PreviewScreen() {
     AdoptionCenterApplicationTheme {
-
+        // si quieres el preview de alguna pantalla, llamala aqui
     }
 }
