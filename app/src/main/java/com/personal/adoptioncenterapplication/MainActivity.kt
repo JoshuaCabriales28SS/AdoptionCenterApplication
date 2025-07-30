@@ -1,6 +1,5 @@
 package com.personal.adoptioncenterapplication
 
-import android.app.Activity
 import android.net.Uri
 import android.os.Bundle
 import android.util.Log
@@ -27,12 +26,9 @@ import androidx.navigation.compose.rememberNavController
 import coil.compose.AsyncImage
 import androidx.compose.foundation.layout.Row
 import androidx.compose.ui.platform.LocalContext
-import java.util.UUID
 import kotlinx.coroutines.tasks.await
-import android.content.pm.PackageManager
-import android.os.Build
-import androidx.core.app.ActivityCompat
-import androidx.core.content.ContextCompat
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 
 import com.personal.adoptioncenterapplication.model.Animal
 import com.personal.adoptioncenterapplication.ui.theme.AdoptionCenterApplicationTheme
@@ -44,7 +40,13 @@ import com.google.firebase.firestore.FirebaseFirestore
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import com.google.firebase.storage.FirebaseStorage
+import androidx.compose.foundation.Image
+import androidx.compose.ui.graphics.asImageBitmap
+import java.io.File
+import java.io.FileOutputStream
+import com.google.firebase.Timestamp
+import com.google.firebase.firestore.DocumentSnapshot
+import com.google.firebase.firestore.Query
 
 
 class MainActivity : ComponentActivity() {
@@ -98,8 +100,16 @@ fun AdoptionApp() {
             )
         }
 
+        // Pantalla lista de animales
         composable("admin_animal_list") {
-            AdminAnimalListScreen()
+            AdminAnimalListScreen(
+                onNavigateToRequests = { navController.navigate("admin_requests")}
+            )
+        }
+
+        // Pantalla de solicitudes
+        composable("admin_requests") {
+            AdminRequestsScreen()
         }
 
         // 2. Pantalla de Registro de Usuario
@@ -113,6 +123,7 @@ fun AdoptionApp() {
         composable("catalog") {
             AnimalCatalogScreen(
                 onAnimalSelected = { selectedAnimal ->
+                    navController.currentBackStackEntry?.savedStateHandle?.set("animal", selectedAnimal)
                     navController.navigate("detail")
                 },
                 onNavigateToRegisterAnimal = {
@@ -319,7 +330,7 @@ fun AdminLoginScreen(onAdminLoginSuccess: () -> Unit, onNavigateToRegister: () -
 
 // Pantalla para administrar los registros
 @Composable
-fun AdminAnimalListScreen() {
+fun AdminAnimalListScreen(onNavigateToRequests: () -> Unit) {
     val db = FirebaseFirestore.getInstance()
     var animals by remember { mutableStateOf<List<Pair<String, Animal>>>(emptyList()) }
     var isLoading by remember { mutableStateOf(true) }
@@ -353,6 +364,11 @@ fun AdminAnimalListScreen() {
                 }
             }
         }
+        TextButton(
+            onClick = onNavigateToRequests
+        ) {
+            Text("Solicitudes")
+        }
     }
 }
 
@@ -370,6 +386,84 @@ fun AnimalItem(animal: Animal, onDelete: () -> Unit) {
         }
     }
 }
+
+// Pantalla para solicitudes
+@Composable
+fun AdminRequestsScreen() {
+    val db = FirebaseFirestore.getInstance()
+    val context = LocalContext.current
+    var requests by remember { mutableStateOf<List<DocumentSnapshot>>(emptyList()) }
+    var isLoading by remember { mutableStateOf(true) }
+
+    // Cargar solicitudes al iniciar
+    LaunchedEffect(Unit) {
+        db.collection("adoption_requests")
+            .orderBy("timestamp", Query.Direction.DESCENDING)
+            .addSnapshotListener { snapshot, error ->
+                if (error != null) {
+                    Toast.makeText(context, "Error al cargar solicitudes", Toast.LENGTH_SHORT).show()
+                    return@addSnapshotListener
+                }
+                if (snapshot != null) {
+                    requests = snapshot.documents
+                    isLoading = false
+                }
+            }
+    }
+
+    Column(modifier = Modifier.padding(16.dp)) {
+        Text("Solicitudes de Adopción", style = MaterialTheme.typography.headlineMedium)
+
+        if (isLoading) {
+            CircularProgressIndicator(modifier = Modifier.padding(16.dp))
+        } else if (requests.isEmpty()) {
+            Text("No hay solicitudes.")
+        } else {
+            LazyColumn {
+                items(requests) { doc ->
+                    val animalName = doc.getString("animalName") ?: "Desconocido"
+                    val fullName = doc.getString("fullName") ?: ""
+                    val address = doc.getString("address") ?: ""
+                    val notes = doc.getString("notes") ?: ""
+                    val status = doc.getString("status") ?: "pendiente"
+
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 8.dp),
+                        elevation = CardDefaults.cardElevation(4.dp)
+                    ) {
+                        Column(modifier = Modifier.padding(16.dp)) {
+                            Text("Animal: $animalName", style = MaterialTheme.typography.titleMedium)
+                            Text("Solicitante: $fullName")
+                            Text("Dirección: $address")
+                            Text("Comentario: $notes")
+                            Text("Estado: $status")
+
+                            if (status == "pendiente") {
+                                Button(
+                                    onClick = {
+                                        doc.reference.update("status", "aprobado")
+                                            .addOnSuccessListener {
+                                                Toast.makeText(context, "Solicitud aprobada", Toast.LENGTH_SHORT).show()
+                                            }
+                                            .addOnFailureListener {
+                                                Toast.makeText(context, "Error al aprobar", Toast.LENGTH_SHORT).show()
+                                            }
+                                    },
+                                    modifier = Modifier.padding(top = 8.dp)
+                                ) {
+                                    Text("Aprobar")
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
 
 // 2. Pantalla de Registro de Usuario
 @Composable
@@ -498,14 +592,22 @@ fun AnimalCard(
         elevation = CardDefaults.cardElevation(4.dp)
     ) {
         Column {
-            AsyncImage(
-                model = animal.photoUrl,
-                contentDescription = "Foto de ${animal.name}",
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(200.dp),
-                contentScale = ContentScale.Crop
-            )
+            val bitmap = remember(animal.photoPath) {
+                val file = File(animal.photoPath)
+                if (file.exists()) BitmapFactory.decodeFile(file.absolutePath) else null
+            }
+
+            bitmap?.let {
+                Image(
+                    bitmap = it.asImageBitmap(),
+                    contentDescription = "Foto de ${animal.name}",
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(200.dp),
+                    contentScale = ContentScale.Crop
+                )
+            }
+
             Spacer(modifier = Modifier.height(8.dp))
             Text(
                 text = animal.name,
@@ -536,13 +638,22 @@ fun AnimalDetailScreen(
             .fillMaxSize()
             .padding(16.dp)
     ) {
-        AsyncImage(
-            model = animal.photoUrl,
-            contentDescription = animal.name,
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(250.dp)
-        )
+        val bitmap = remember(animal.photoPath) {
+            val file = File(animal.photoPath)
+            if (file.exists()) BitmapFactory.decodeFile(file.absolutePath) else null
+        }
+
+        bitmap?.let {
+            Image(
+                bitmap = it.asImageBitmap(),
+                contentDescription = animal.name,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(250.dp),
+                contentScale = ContentScale.Crop
+            )
+        }
+
         Spacer(modifier = Modifier.height(16.dp))
 
         Text(animal.name, style = MaterialTheme.typography.headlineMedium)
@@ -571,9 +682,13 @@ fun AnimalDetailScreen(
 // 5. Pantalla de Solicitud de Animal
 @Composable
 fun AdoptionRequestScreen(animalName: String, onSubmit: () -> Unit) {
+    val context = LocalContext.current
+    val db = FirebaseFirestore.getInstance()
+
     var fullName by remember { mutableStateOf("") }
     var address by remember { mutableStateOf("") }
     var notes by remember { mutableStateOf("") }
+    var isSubmitting by remember { mutableStateOf(false) }
 
     Column(
         modifier = Modifier
@@ -608,22 +723,48 @@ fun AdoptionRequestScreen(animalName: String, onSubmit: () -> Unit) {
 
         Button(
             onClick = {
-                // Aquí puedes guardar en Firestore si quieres
-                onSubmit()
+                if (fullName.isNotBlank() && address.isNotBlank()) {
+                    isSubmitting = true
+
+                    val requestData = hashMapOf(
+                        "animalName" to animalName,
+                        "fullName" to fullName,
+                        "address" to address,
+                        "notes" to notes,
+                        "status" to "pendiente",
+                        "timestamp" to Timestamp.now()
+                    )
+
+                    db.collection("adoption_requests")
+                        .add(requestData)
+                        .addOnSuccessListener {
+                            Toast.makeText(context, "Solicitud enviada", Toast.LENGTH_SHORT).show()
+                            onSubmit()
+                        }
+                        .addOnFailureListener {
+                            Toast.makeText(context, "Error al enviar solicitud", Toast.LENGTH_SHORT).show()
+                        }
+                        .addOnCompleteListener {
+                            isSubmitting = false
+                        }
+                } else {
+                    Toast.makeText(context, "Por favor, completa todos los campos", Toast.LENGTH_SHORT).show()
+                }
             },
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier.fillMaxWidth(),
+            enabled = !isSubmitting
         ) {
-            Text("Enviar Solicitud")
+            Text(if (isSubmitting) "Enviando..." else "Enviar Solicitud")
         }
     }
 }
+
 
 
 // 6. Pantalla de Registro de Animales
 @Composable
 fun RegisterAnimalScreen(onAnimalRegistered: () -> Unit) {
     val context = LocalContext.current
-    val storage = FirebaseStorage.getInstance()
     val db = FirebaseFirestore.getInstance()
 
     var name by remember { mutableStateOf("") }
@@ -631,29 +772,12 @@ fun RegisterAnimalScreen(onAnimalRegistered: () -> Unit) {
     var age by remember { mutableStateOf("") }
     var imageUri by remember { mutableStateOf<Uri?>(null) }
     var uploading by remember { mutableStateOf(false) }
+    var savedImagePath by remember { mutableStateOf<String?>(null) }
 
-    val launcher = rememberLauncherForActivityResult(
+    val imagePicker = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent(),
         onResult = { uri -> imageUri = uri }
     )
-
-    fun checkAndPickImage() {
-        val permission = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            android.Manifest.permission.READ_MEDIA_IMAGES
-        } else {
-            android.Manifest.permission.READ_EXTERNAL_STORAGE
-        }
-
-        if (ContextCompat.checkSelfPermission(context, permission) != PackageManager.PERMISSION_GRANTED) {
-            ActivityCompat.requestPermissions(
-                context as Activity,
-                arrayOf(permission),
-                101
-            )
-        } else {
-            launcher.launch("image/*")
-        }
-    }
 
     Column(
         modifier = Modifier
@@ -685,7 +809,7 @@ fun RegisterAnimalScreen(onAnimalRegistered: () -> Unit) {
 
         Spacer(modifier = Modifier.height(8.dp))
 
-        Button(onClick = { checkAndPickImage() }) {
+        Button(onClick = { imagePicker.launch("image/*") }) {
             Text("Seleccionar Foto")
         }
 
@@ -707,36 +831,46 @@ fun RegisterAnimalScreen(onAnimalRegistered: () -> Unit) {
             onClick = {
                 if (name.isNotBlank() && imageUri != null && !uploading) {
                     uploading = true
-                    val fileName = UUID.randomUUID().toString()
-                    val ref = storage.reference.child("animal_photos/$fileName")
 
-                    ref.putFile(imageUri!!)
-                        .continueWithTask { task ->
-                            if (!task.isSuccessful) {
-                                throw task.exception ?: Exception("Upload failed")
+                    try {
+                        val inputStream = context.contentResolver.openInputStream(imageUri!!)
+                        val bitmap = BitmapFactory.decodeStream(inputStream)
+
+                        val fileName = "animal_${System.currentTimeMillis()}.jpg"
+                        val file = File(context.filesDir, fileName)
+                        val outputStream = FileOutputStream(file)
+
+                        bitmap.compress(Bitmap.CompressFormat.JPEG, 100, outputStream)
+
+
+                        outputStream.flush()
+                        outputStream.close()
+                        inputStream?.close()
+
+                        savedImagePath = file.absolutePath
+
+                        val animalData = hashMapOf(
+                            "name" to name,
+                            "breed" to breed,
+                            "age" to age,
+                            "photoPath" to file.absolutePath
+                        )
+
+                        db.collection("animals")
+                            .add(animalData)
+                            .addOnSuccessListener {
+                                uploading = false
+                                onAnimalRegistered()
                             }
-                            ref.downloadUrl
-                        }.addOnSuccessListener { downloadUri ->
-                            val animalData = hashMapOf(
-                                "nombre" to name,
-                                "raza" to breed,
-                                "edad" to age,
-                                "photoUrl" to downloadUri.toString()
-                            )
-                            db.collection("animals")
-                                .add(animalData)
-                                .addOnSuccessListener {
-                                    uploading = false
-                                    onAnimalRegistered()
-                                }
-                                .addOnFailureListener {
-                                    uploading = false
-                                    Toast.makeText(context, "Error al guardar", Toast.LENGTH_SHORT).show()
-                                }
-                        }.addOnFailureListener {
-                            uploading = false
-                            Toast.makeText(context, "Error al subir imagen", Toast.LENGTH_SHORT).show()
-                        }
+                            .addOnFailureListener {
+                                uploading = false
+                                Toast.makeText(context, "Error al guardar en Firebase", Toast.LENGTH_SHORT).show()
+                            }
+
+                    } catch (e: Exception) {
+                        uploading = false
+                        Toast.makeText(context, "Error al guardar imagen local", Toast.LENGTH_SHORT).show()
+                    }
                 }
             },
             modifier = Modifier.fillMaxWidth(),

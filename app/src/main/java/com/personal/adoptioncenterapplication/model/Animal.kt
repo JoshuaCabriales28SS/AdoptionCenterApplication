@@ -1,9 +1,10 @@
 package com.personal.adoptioncenterapplication.model
 
+import java.io.Serializable
+
 data class Animal(
-    val id: Int = 0,
     val name: String = "",
     val breed: String = "",
     val age: String = "",
-    val photoUrl: String = ""
-)
+    val photoPath: String = ""
+) : Serializable
